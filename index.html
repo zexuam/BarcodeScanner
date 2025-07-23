@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Barcode Scanner (Auto Stop)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 1rem;
+    }
+    video {
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid #ccc;
+      margin-top: 1rem;
+    }
+    #result {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      color: green;
+    }
+    button {
+      padding: 0.5rem 1.25rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>📷 Barcode Scanner</h2>
+  <button id="start">Start Scan</button>
+  <video id="video" autoplay muted playsinline></video>
+  <div id="result">Scanner idle...</div>
+
+  <script>
+    const startBtn = document.getElementById('start')
+    const video = document.getElementById('video')
+    const resultEl = document.getElementById('result')
+
+    let stream = null
+    let detector = null
+    let detecting = false
+
+    startBtn.addEventListener('click', async () => {
+      if (!('BarcodeDetector' in window)) {
+        resultEl.textContent = 'BarcodeDetector not supported in this browser.'
+        return
+      }
+
+      // Reset
+      resultEl.textContent = 'Scanning...'
+      if (stream) stopCamera()
+
+      detector = new BarcodeDetector({
+        formats: ['qr_code', 'code_128', 'ean_13', 'code_39']
+      })
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        })
+        video.srcObject = stream
+        detecting = true
+
+        video.onloadedmetadata = () => {
+          video.play()
+          detectLoop()
+        }
+      } catch (err) {
+        console.error('Camera error:', err)
+        resultEl.textContent = 'Camera error.'
+      }
+    })
+
+    async function detectLoop() {
+      if (!detecting) return
+
+      try {
+        const barcodes = await detector.detect(video)
+        if (barcodes.length > 0) {
+          resultEl.textContent = `📦 Detected: ${barcodes[0].rawValue}`
+          stopCamera()
+        } else {
+          requestAnimationFrame(detectLoop)
+        }
+      } catch (err) {
+        console.error('Detection error:', err)
+        resultEl.textContent = 'Detection failed.'
+      }
+    }
+
+    function stopCamera() {
+      detecting = false
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+        stream = null
+      }
+      video.srcObject = null
+    }
+  </script>
+</body>
+</html>
